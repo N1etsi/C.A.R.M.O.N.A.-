@@ -33,22 +33,15 @@
 /////////////////////////////////////////////////////
 //declare global suff
 uint8_t FlM=0; //Flight Mode
-
-float pidProll=1;
-float pidPyaw=1;
-float pidPpitch=1;
-
-float pidIroll=1;
-float pidIyaw=1;
-float pidIpitch=1;
-
-float pidDroll=1;
-float pidDyaw=1;
-float pidDpitch=1;
+//0-P 1-I 2-D
+float PIDroll[3];
+float PIDpitch[3];
+float PIDyaw[3];
 
 uint32_t pidMaxroll=100;
 uint32_t pidMaxyaw=100;
 uint32_t pidMaxpitch=100;
+
 
 
 
