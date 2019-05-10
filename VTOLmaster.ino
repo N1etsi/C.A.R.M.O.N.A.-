@@ -31,6 +31,8 @@
   NAAM - 2018
 */
 /////////////////////////////////////////////////////
+//libs
+#include <wire.h>
 //declare global suff
 uint8_t FlM=0; //Flight Mode
 //0-P 1-I 2-D
