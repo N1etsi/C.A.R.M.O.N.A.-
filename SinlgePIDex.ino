@@ -1,7 +1,7 @@
 //libs
 #include <Wire.h>
 
-#define MPU 
+#define MPU 0x53
 
 //PID
 float pidK[3];//P I D
