@@ -23,11 +23,14 @@ void setup()
   Wire.write(0x6B);                  // Talk to the register 6B
   Wire.write(0x00);                  // Make reset - place a 0 into the 6B register
   Wire.endTransmission(true);
+  digitalWrite(12,HIGH);
 }
 
 void loop()
 {
   Wire.begin();
-  digitalWrite(12,HIGH);
+
+  readGyro();
+
 
 }
