@@ -1,6 +1,8 @@
 //libs
 #include <Wire.h>
 
+#define MPU 
+
 //PID
 float pidK[3];//P I D
 pidK[0]=1;//P
