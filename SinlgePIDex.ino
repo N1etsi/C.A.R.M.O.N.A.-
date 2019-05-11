@@ -22,7 +22,8 @@ float accXErr, accYErr, accZErr, gyroXErr, gyroYErr, gyroZErr;
 float roll, pitch, yaw;
 float throttle;
 
-unsigned long timerRoll, timerThrottle; 
+unsigned long timerRoll, timerThrottle;
+unsigned long currTime, initTime;
 
 
 void setup()
@@ -122,15 +123,25 @@ void calcPID()
 
 void actuate()
 {
-  RXInt=
- escOutL=pidOut;
+  throtle=timerThrottle;
+  escOutL=throtle+pidOut;
+  escOutR=throtle-pidOut;
+
+  if (escOutL>2000) escOutL=2000;
+  if (escOutR>2000) escOutR=2000;
+  if (escOutL<1000) escOutL=1000;
+  if (escOutR<1000) escOutR=1000;
 
 }
 void setupIMU()
 {
 }
 
-ISR(PCINT2_vect)//interrupt when change in pin d0-d7
+ISR(PCINT2_vect)//interrupt when change in pin d0-d7 (input)
 {
+  currTime=micros();
+
+
+
 
 }
