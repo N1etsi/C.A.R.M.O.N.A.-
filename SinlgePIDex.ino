@@ -12,14 +12,17 @@ pidK[1]=0.1;//I
 pidK[2]=10;//D
 int max=400;
 float pidMem, pidPrev, pidSP, tempError, pidOut;//memory for integral, prev for derivation, sp->set point
-volatile int RXin;
-int escOut;
+volatile int RXin, RXInT;
+int escOutL, escOutR;
 boolean lastState;
 //GyroAccell
 float accX,accY,accZ, accXAng,accYAng,accZAng;
 float gyroX,gyroY,gyroZ, gyroXAng,gyroYAng,gyroZAng;
 float accXErr, accYErr, accZErr, gyroXErr, gyroYErr, gyroZErr;
 float roll, pitch, yaw;
+float throttle;
+
+unsigned long timerRoll, timerThrottle; 
 
 
 void setup()
@@ -50,7 +53,7 @@ void setup()
 
 }
 
-void loop() //20 ms cycle => 50hz
+void cycle() //20 ms cycle => 50hz
 {
 
   readGyro(); //read data from mpu
@@ -119,10 +122,15 @@ void calcPID()
 
 void actuate()
 {
- escOut=pidOut;
+  RXInt=
+ escOutL=pidOut;
 
 }
 void setupIMU()
+{
+}
+
+ISR(PCINT2_vect)//interrupt when change in pin d0-d7
 {
 
 }
