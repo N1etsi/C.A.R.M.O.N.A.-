@@ -14,10 +14,8 @@
 #define MPU 0x68
 #define DELTA 20 //delta time between cycles 20ms
 //PID
-float pidK[3];//P I D
-pidK[0]=1;//P
-pidK[1]=0.1;//I
-pidK[2]=10;//D
+float pidK[3]={1, 0.1, 10};//P I D
+
 int max=400;
 float pidMem, pidPrev, pidSP, tempError, pidOut;//memory for integral, prev for derivation, sp->set point
 volatile int RXIn, RXInT;
@@ -31,7 +29,7 @@ float roll, pitch, yaw;
 float throttle;
 
 unsigned long timerRoll, timerThrottle;
-unsigned long begTime, initTime, looptimer;
+unsigned long begTime, initTime;
 
 
 void setup()
@@ -58,22 +56,16 @@ void setup()
   pidPrev=0;
 
   setupIMU();
-  looptimer=micros();
   digitalWrite(12,LOW);
 
-
 }
-
+void loop(){}
 void cycle() //20 ms cycle => 50hz
 {
+
   readGyro(); //read data from mpu
   normInput(); //normalize inputs
   calcPID(); //calculate pid values
-
-  while(micros()-looptimer<20000);
-  looptimer=micros();
-
-
   actuate(); //output
 }
 
@@ -123,7 +115,7 @@ void normInput()
 
 void calcPID()
 {
-  tempError=RXin-pidSP;
+  tempError=RXIn-pidSP;
   pidMem+=pidK[1]*tempError;
   if(pidMem>max) pidMem=max;
   else if(pidMem<(-1*max)) pidMem= (-1*max);
@@ -161,7 +153,6 @@ ISR(PCINT2_vect)//interrupt when change in pin d0-d7 (input)
     if (micros()-begTime>1000)Serial.println("TOO SLOW");
 
   }
-
 
 
 
