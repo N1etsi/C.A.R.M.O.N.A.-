@@ -154,7 +154,7 @@ void setupIMU()
 ISR(PCINT2_vect)//interrupt when change in pin d0-d7 (input)
 {
 
-  if(PINB & B00000100)//pin 2 is on
+  if(PIND & B00000100)//pin 2 is on
   {
     begTime=micros();
     cycle();
