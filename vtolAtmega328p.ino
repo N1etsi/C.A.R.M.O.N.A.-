@@ -5,6 +5,10 @@ run control loop at 100hz? so we only receive a signal every other loop
 even worth to time the loop? yes=> timing the esc's
 
 PWM
+
+get->calc->out
+
+note: add battery checker on the 1ms dead time of pwm out? +?
 */
 //global variable
 #define PI 3.14
@@ -43,6 +47,11 @@ volatile int rxIn1, rxIn2, rxIn3, rxIn4;
 
 //controll stuff
 unsigned long looptimer;
+
+//esc and servo stuff
+              //left motor,right motor, left serv, right servo
+unsigned long timer1, timer2, timer3, timer4;
+int escL, escR, servL, servR;
 
 
 void setup()
@@ -93,16 +102,23 @@ void setup()
 }
 void loop()
 {
+  while (looptimer+DELTA*1000 > micros());
+  loop_timer=micros();
+
   //Accelarometer
   getAcc();
   //Gyro
   getGyr();
 
+  calcError();
+
+  calcPID();
+
+  calcOutput();
 
 
   //output
-  writeOutEsc();
-  writeOutServ();
+  writeOutEscServ();
 
 
 
@@ -123,8 +139,6 @@ modeT= 1100 if plane, 1800 hover
 mode=0 if plane , 1 if hover
 */
 /////
-
-loop_timer=micros();
 }
 
 float degrad(float deg) //degree to rad
@@ -224,7 +238,24 @@ void getGyr()
   pitch= 0.96* gyroYAng + 0.04* accYAng;
   yaw=gyroZAng;
 }
-void writeOutEsc()
+void writeOutEscServ()
 {
-  unsigned long
+  unsigned long escTimer;
+
+  PORTD |= B11110000; //starts pulse for every pwm
+  timer1=escL+looptimer;
+  timer2=escR+looptimer;
+  timer3=servL+looptimer;
+  timer4=servR+looptimer;
+  //do nothing for 1ms , add smth???
+
+  while(PORTD >=16)
+  {
+    escTimer=micros();
+    if(timer1<= escTimer) PORTD &= B11101111; //time's up, FE pwm
+    if(timer2<= escTimer) PORTD &= B11011111; //time's up, FE pwm
+    if(timer3<= escTimer) PORTD &= B10111111; //time's up, FE pwm
+    if(timer4<= escTimer) PORTD &= B01111111; //time's up, FE pwm
+  }
+
 }
