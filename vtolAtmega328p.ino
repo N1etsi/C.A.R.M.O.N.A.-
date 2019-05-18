@@ -8,7 +8,8 @@ PWM
 
 get->calc->out
 
-note: add battery checker on the 1ms dead time of pwm out? +?
+note: add battery checker on the 1ms dead time of pwm out? +beep if low?
+missing some calcPID stuff
 */
 //global variable
 #define PI 3.14
@@ -33,7 +34,9 @@ float iYaw = 0.05;
 float dYaw = 15.0;
 int maxYaw = 400;
 
-
+float rollImem, rollDlast, rollSP, rollOut;
+float pitchImem, pitchDlast, pitchSP, pitchOut;
+float yawImem, yawDlast, yawSP, yawOut;
 
 //mpu6050 stuff
 #define MPU 0x68
@@ -44,9 +47,13 @@ float accXAngle, accYAngle, gyroXAng, gyroYAng, gyroZAng, totAngle[2];
 bool prevStch1, prevStch2, prevStch3, prevStch4;
 unsigned long timerCH1, timerCH2, timerCH3, timerCH4;
 volatile int rxIn1, rxIn2, rxIn3, rxIn4;
+float rollAdjust, pitchAdjust;
+int throtle;
 
 //controll stuff
 unsigned long looptimer;
+int mode=1; //hard code to run on hover mode
+int modeT=1750; //hard code servo pwm on hover
 
 //esc and servo stuff
               //left motor,right motor, left serv, right servo
@@ -98,35 +105,33 @@ void setup()
 
   setupMPU();
 
+  //setupFlight
+  pitch=accYAng;
+  roll=accXAng
+  rollImem=0;
+  rollDlast=0;
+  pitchImem=0;
+  pitchDlast=0;
+  yawImem=0;
+  yawDlast=0;
+
+
   looptimer=micros();
 }
 void loop()
 {
-  while (looptimer+DELTA*1000 > micros());
-  loop_timer=micros();
 
   //Accelarometer
   getAcc();
   //Gyro
   getGyr();
 
-  calcError();
-
   calcPID();
 
   calcOutput();
 
-
   //output
-  writeOutEscServ();
-
-
-
-
-
-
-
-
+  writeOutEscServ(); //deals with the loop timer
 
 /////
 /*
@@ -140,12 +145,10 @@ mode=0 if plane , 1 if hover
 */
 /////
 }
-
 float degrad(float deg) //degree to rad
 {
   return deg*3.14/180.0
 }
-
 ISR(PCINT0_vect)
 {
   unsigned long ctTime=micros();
@@ -158,7 +161,7 @@ ISR(PCINT0_vect)
   else if (prevStch1==1 && !(PINB & B00000001))//pin 8 FE
   {
     prevStch1=0;
-    rxIn1= ctTime-timerCH1;
+    rxIn1= (ctTime-timerCH1)/1000;
   }
 
   //CH2
@@ -170,7 +173,7 @@ ISR(PCINT0_vect)
   else if(prevStch2==1 && PINB & !(B00000010)) //pin 9 FE
   {
     prevStch2=0;
-    rxIn2 = ctTime-timerCH2;
+    rxIn2 = (ctTime-timerCH2)/1000;
   }
 
   //ch3
@@ -182,7 +185,7 @@ ISR(PCINT0_vect)
   else if(prevStch3==1 && PINB & !(B00000100)) // pin 10 FE
   {
     prevStch3=0;
-    rxIn3 = ctTime-timerCH3;
+    rxIn3 = (ctTime-timerCH3)/1000;
   }
 
   //CH4
@@ -194,11 +197,10 @@ ISR(PCINT0_vect)
   else if(prevStch4==1 && PINB & !(B0000100)) // pin 11 FE
   {
     prevStch4=0;
-    rxIn4 = ctTime-timerCH4;
+    rxIn4 = (ctTime-timerCH4)/1000;
   }
 
 }
-
 void getAcc()
 {
   //Accel
@@ -237,10 +239,16 @@ void getGyr()
   roll= 0.96* gyroXAng + 0.04* accXAng;
   pitch= 0.96* gyroYAng + 0.04* accYAng;
   yaw=gyroZAng;
+
+  rollAdjust= roll*15; //why 15?
+  pitchAdjust= pitch*15;
 }
 void writeOutEscServ()
 {
   unsigned long escTimer;
+
+  while (looptimer+DELTA*1000 > micros());
+  loop_timer=micros();
 
   PORTD |= B11110000; //starts pulse for every pwm
   timer1=escL+looptimer;
@@ -258,4 +266,48 @@ void writeOutEscServ()
     if(timer4<= escTimer) PORTD &= B01111111; //time's up, FE pwm
   }
 
+}
+void calcPID()
+{
+  rollSP=0;
+  if(rxIn1>1505) rollSP=rxIn1-1505;
+  else if(rxIn1<1495) rollSP=rxIn1-1495;
+  rollSP-=rollAdjust;
+  rollSP/=3.0;
+
+  pitchSP=0;
+  if(rxIn2>1505) pitchSP=rxIn2-1505;
+  else if(rxIn2<1495) pitchSP=rxIn2-1495;
+  pitchSP-=pitchAdjust;
+  pitchSP/=3.0;
+
+  yawSP=0;
+  if(rxIn3>1050)
+  {
+    if(rxIn4>1505) yawSP=rxIn4-1505;
+    else if(rxIn4<1495) yawSP=rxIn4-1495;
+    yawSP/=3.0;
+  }
+  //"calculate PID()"
+
+
+}
+void calcOutput()
+{
+  throtle=rxIn3;
+
+  escL = throttle + mode*rollPID;//+ (1-mode)*yawPID
+  escR = throttle - mode*rollPID; //- (1-mode)*yawPID
+  serL = modeT + mode*pitchPID + mode*yawPID; // + (1-mode)*rollPID
+  serR = modeT + mode*pitchPID - mode*yawPID; // - (1-mode)*rollPID
+
+  if(escL<1050) escL=1050;
+  if(escR<1050) escR=1050;
+  if(servL<1050) servL=1050;
+  if(servR<1050) servR=1050;
+
+  if(escL>2000) escL=2000;
+  if(escR>2000) escR=2000;
+  if(servL>2000) servL=2000;
+  if(servR>2000) servR=2000;
 }
