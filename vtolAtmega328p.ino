@@ -1,16 +1,7 @@
 #include <Wire.h>
 #include <Servo.h>
-/*
-run control loop at 100hz? so we only receive a signal every other loop
-even worth to time the loop? yes=> timing the esc's
 
-PWM
 
-get->calc->out
-
-note: add battery checker on the 1ms dead time of pwm out? +beep if low?
-missing some calcPID stuff
-*/
 //global variable
 #define PI 3.14
 #define DELTA 20 //miliscnds per cycle
@@ -38,10 +29,13 @@ float rollImem, rollDlast, rollSP, rollOut;
 float pitchImem, pitchDlast, pitchSP, pitchOut;
 float yawImem, yawDlast, yawSP, yawOut;
 
+float tempError;
+
 //mpu6050 stuff
 #define MPU 0x68
 int16_t accX, accY, accZ, gyrX, gyrY, gyrZ;
 float accXAngle, accYAngle, gyroXAng, gyroYAng, gyroZAng, totAngle[2];
+float roll, pitch, yaw;
 
 //RX stuff
 bool prevStch1, prevStch2, prevStch3, prevStch4;
@@ -133,17 +127,6 @@ void loop()
   //output
   writeOutEscServ(); //deals with the loop timer
 
-/////
-/*
-escL = throttle + mode*rollPID + (1-mode)*yawPID
-escR = throttle - mode*rollPID - (1-mode)*yawPID
-serL = modeT + mode*pitchPID + mode*yawPID + (1-mode)*rollPID
-serR = modeT + mode*pitchPID - mode*yawPID - (1-mode)*rollPID
-
-modeT= 1100 if plane, 1800 hover
-mode=0 if plane , 1 if hover
-*/
-/////
 }
 float degrad(float deg) //degree to rad
 {
@@ -243,6 +226,90 @@ void getGyr()
   rollAdjust= roll*15; //why 15?
   pitchAdjust= pitch*15;
 }
+
+void calcPID()
+{
+  rollSP=0;
+  if(rxIn1>1505) rollSP=rxIn1-1505;
+  else if(rxIn1<1495) rollSP=rxIn1-1495;
+  rollSP-=rollAdjust;
+  rollSP/=3.0;
+
+  pitchSP=0;
+  if(rxIn2>1505) pitchSP=rxIn2-1505;
+  else if(rxIn2<1495) pitchSP=rxIn2-1495;
+  pitchSP-=pitchAdjust;
+  pitchSP/=3.0;
+
+  yawSP=0;
+  if(rxIn3>1050)
+  {
+    if(rxIn4>1505) yawSP=rxIn4-1505;
+    else if(rxIn4<1495) yawSP=rxIn4-1495;
+    yawSP/=3.0;
+  }
+  //"calculate PID()"
+  //ROLL PID
+  tempError = roll- rollSP;
+  rollImem += iRoll * tempError;
+  if (rollImem>maxRoll) rollImem=maxRoll;
+  else if (rollImem<(-1*maxRoll)) rollImem = -1*maxRoll;
+
+  rollOut= pRoll* tempError + rollImem + dRoll* (tempError-rollDlast);
+  if (rollOut>maxRoll) rollOut=maxRoll;
+  else if (rollOut<(-1*maxRoll)) rollOut = -1*maxRoll;
+
+  rollDlast=tempError;
+
+  //PITCH PID
+  tempError= pitch - pitchSP;
+  pitchImem+= iPitch* tempError;
+  if (pitchImem>maxPitch) pitchImem=maxPitch;
+  else if (pitchImem<(-1*maxPitch)) pitchImem = -1*maxPitch;
+
+  pitchOut= pPitch* tempError + pitchImem + dPitch* (tempError- pitchDlast);
+  if (pitchOut>maxPitch) pitchOut=maxPitch;
+  else if (pitchOut<(-1*maxPitch)) pitchOut = -1*maxPitch;
+
+  pitchDlast=tempError;
+
+  //YAW PID
+  tempError= yaw - yawSP;
+  yawImem+= yawImem* tempError;
+  if(yawImem>maxYaw) yawImem=maxYaw;
+  else if(yawImem<(-1*maxYaw)) yawImem = -1*maxYaw;
+
+  yawOut= pYaw* tempError + yawImem + dYaw* (tempError-yawDlast);
+  if(yawOut>maxYaw) yawOut=maxYaw;
+  else if(yawOut<(-1*maxYaw)) yawOut = -1*maxYaw;
+
+  yawDlast= tempError;
+
+}
+void calcOutput()
+{
+  throtle=rxIn3;
+
+  escL = throttle + mode*rollPID;//+ (1-mode)*yawPID
+  escR = throttle - mode*rollPID; //- (1-mode)*yawPID
+  serL = modeT + mode*pitchPID + mode*yawPID; // + (1-mode)*rollPID
+  serR = modeT + mode*pitchPID - mode*yawPID; // - (1-mode)*rollPID
+
+  if(escL<1050) escL=1050;
+  if(escR<1050) escR=1050;
+  if(servL<1050) servL=1050;
+  if(servR<1050) servR=1050;
+
+  if(escL>2000) escL=2000;
+  if(escR>2000) escR=2000;
+  if(servL>2000) servL=2000;
+  if(servR>2000) servR=2000;
+  //milisecnds to micros
+  escL*=1000;
+  escR*=1000;
+  servL*=1000;
+  servR*=1000;
+}
 void writeOutEscServ()
 {
   unsigned long escTimer;
@@ -267,47 +334,22 @@ void writeOutEscServ()
   }
 
 }
-void calcPID()
-{
-  rollSP=0;
-  if(rxIn1>1505) rollSP=rxIn1-1505;
-  else if(rxIn1<1495) rollSP=rxIn1-1495;
-  rollSP-=rollAdjust;
-  rollSP/=3.0;
 
-  pitchSP=0;
-  if(rxIn2>1505) pitchSP=rxIn2-1505;
-  else if(rxIn2<1495) pitchSP=rxIn2-1495;
-  pitchSP-=pitchAdjust;
-  pitchSP/=3.0;
+/////
+/*
+modeT= 1100 if plane, 1800 hover
+mode=0 if plane , 1 if hover
+*/
+/////
 
-  yawSP=0;
-  if(rxIn3>1050)
-  {
-    if(rxIn4>1505) yawSP=rxIn4-1505;
-    else if(rxIn4<1495) yawSP=rxIn4-1495;
-    yawSP/=3.0;
-  }
-  //"calculate PID()"
+/*
+run control loop at 100hz? so we only receive a signal every other loop
+even worth to time the loop? yes=> timing the esc's
 
+PWM
 
-}
-void calcOutput()
-{
-  throtle=rxIn3;
+get->calc->out
 
-  escL = throttle + mode*rollPID;//+ (1-mode)*yawPID
-  escR = throttle - mode*rollPID; //- (1-mode)*yawPID
-  serL = modeT + mode*pitchPID + mode*yawPID; // + (1-mode)*rollPID
-  serR = modeT + mode*pitchPID - mode*yawPID; // - (1-mode)*rollPID
-
-  if(escL<1050) escL=1050;
-  if(escR<1050) escR=1050;
-  if(servL<1050) servL=1050;
-  if(servR<1050) servR=1050;
-
-  if(escL>2000) escL=2000;
-  if(escR>2000) escR=2000;
-  if(servL>2000) servL=2000;
-  if(servR>2000) servR=2000;
-}
+note: add battery checker on the 1ms dead time of pwm out? +beep if low?
+missing some calcPID stuff
+*/
