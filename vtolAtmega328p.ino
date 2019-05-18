@@ -34,7 +34,7 @@ float tempError;
 //mpu6050 stuff
 #define MPU 0x68
 int16_t accX, accY, accZ, gyrX, gyrY, gyrZ;
-float accXAngle, accYAngle, gyroXAng, gyroYAng, gyroZAng, totAngle[2];
+float accXAng, accYAng, gyroXAng, gyroYAng, gyroZAng, totAngle[2];
 float roll, pitch, yaw;
 
 //RX stuff
@@ -42,7 +42,7 @@ bool prevStch1, prevStch2, prevStch3, prevStch4;
 unsigned long timerCH1, timerCH2, timerCH3, timerCH4;
 volatile int rxIn1, rxIn2, rxIn3, rxIn4;
 float rollAdjust, pitchAdjust;
-int throtle;
+int throttle;
 
 //controll stuff
 unsigned long looptimer;
@@ -59,8 +59,8 @@ void setup()
 {
 
   TWBR = 12;  //sets i2c clock to 400khz
-  DDRD |= B11110000    // ports d0 to d7 4-7 -> output, 2escs and 2 servos
-  DDRB |= B00110000    // ports d8 to d13 8 - 11 -> input, 4ch
+  DDRD |= B11110000;   // ports d0 to d7 4-7 -> output, 2escs and 2 servos
+  DDRB |= B00110000;  // ports d8 to d13 8 - 11 -> input, 4ch
   digitalWrite(12,1);
   //MPU6050
   Wire.begin();
@@ -81,7 +81,7 @@ void setup()
   Wire.endTransmission(true);
 
   //ESC INIT
-  for (cal_int = 0; cal_int < 1250 ; cal_int ++)//Wait 5 seconds before continuing
+  for (int cal_int = 0; cal_int < 1250 ; cal_int ++)//Wait 5 seconds before continuing
   {
     PORTD |= B11000000;                                                     //Set digital port  6 and 7 high.
     delayMicroseconds(950);                                                //Wait 1000us.
@@ -97,11 +97,11 @@ void setup()
 
 
 
-  setupMPU();
+//  setupMPU();
 
   //setupFlight
   pitch=accYAng;
-  roll=accXAng
+  roll=accXAng;
   rollImem=0;
   rollDlast=0;
   pitchImem=0;
@@ -130,7 +130,7 @@ void loop()
 }
 float degrad(float deg) //degree to rad
 {
-  return deg*3.14/180.0
+  return deg*3.14/180.0;
 }
 ISR(PCINT0_vect)
 {
@@ -196,8 +196,8 @@ void getAcc()
   accY=Wire.read()<<8|Wire.read()/4096;
   accZ=Wire.read()<<8|Wire.read()/4096;
   //Euler Transf.
-  accXAng= (atan(accY/ sqrt(pow(accX,2)+pow(accZ,2))) *180/PI)+ accXErr;
-  accYAng= (atan(-1*accX/sqrt(pow(accY,2)+pow(accZ,2))) *180/PI)+ accYErr;
+  accXAng= (atan(accY/ sqrt(pow(accX,2)+pow(accZ,2))) *180/PI);//+ accXErr;
+  accYAng= (atan(-1*accX/sqrt(pow(accY,2)+pow(accZ,2))) *180/PI);//+ accYErr;
 }
 void getGyr()
 {
@@ -207,17 +207,17 @@ void getGyr()
   Wire.endTransmission(false);
   Wire.requestFrom(MPU, 6, true); //Get 6 (8bit)registers
 
-  gyroX = (Wire.read() << 8 | Wire.read())/32.8; //p.29 datasheet
-  gyroY = (Wire.read() << 8 | Wire.read())/32.8;
-  gyroZ = (Wire.read() << 8 | Wire.read())/32.8;
+  gyrX = (Wire.read() << 8 | Wire.read())/32.8; //p.29 datasheet
+  gyrY = (Wire.read() << 8 | Wire.read())/32.8;
+  gyrZ = (Wire.read() << 8 | Wire.read())/32.8;
 
-  gyroX+= gyroXErr;
-  gyroY+= gyroYErr;
-  gyroZ+= gyroZErr;
+//  gyrX+= gyrXErr;
+  //gyrY+= gyrYErr;
+  //gyrZ+= gyrZErr;
 
-  gyroXAng+=gyroX* DELTA/1000.0; //roll
-  gyroYAng+=gyroY* DELTA/1000.0; //pitch
-  gyroZAng+=gyroZ* DELTA/1000.0; //yaw
+  gyroXAng+=gyrX* DELTA/1000.0; //roll
+  gyroYAng+=gyrY* DELTA/1000.0; //pitch
+  gyroZAng+=gyrZ* DELTA/1000.0; //yaw
 
   roll= 0.96* gyroXAng + 0.04* accXAng;
   pitch= 0.96* gyroYAng + 0.04* accYAng;
@@ -288,12 +288,12 @@ void calcPID()
 }
 void calcOutput()
 {
-  throtle=rxIn3;
+  throttle=rxIn3;
 
-  escL = throttle + mode*rollPID;//+ (1-mode)*yawPID
-  escR = throttle - mode*rollPID; //- (1-mode)*yawPID
-  serL = modeT + mode*pitchPID + mode*yawPID; // + (1-mode)*rollPID
-  serR = modeT + mode*pitchPID - mode*yawPID; // - (1-mode)*rollPID
+  escL = throttle + mode*rollOut;//+ (1-mode)*yawPID
+  escR = throttle - mode*rollOut; //- (1-mode)*yawPID
+  servL = modeT + mode*pitchOut + mode*yawOut; // + (1-mode)*rollPID
+  servR = modeT + mode*pitchOut - mode*yawOut; // - (1-mode)*rollPID
 
   if(escL<1050) escL=1050;
   if(escR<1050) escR=1050;
@@ -313,9 +313,13 @@ void calcOutput()
 void writeOutEscServ()
 {
   unsigned long escTimer;
-
+  //DEGUB PRONT ALL TIMERS
+  Serial.println( "INPUT\n\tCH1: %d\tCH2: %d\tCH3: %d\tCH4: %d", rxIn1, rxIn2, rxIn3, rxIn4);
+  Serial.println("OUTPUT\n\tESCL: %d\tESCR: %d\tServL: %d\tServR: %d", escL, escR, servL, servR);
+  Serial.println("LOOP TIMER: %d", looptimer);
+  Serial.println();
   while (looptimer+DELTA*1000 > micros());
-  loop_timer=micros();
+  looptimer=micros();
 
   PORTD |= B11110000; //starts pulse for every pwm
   timer1=escL+looptimer;
